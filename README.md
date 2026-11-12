@@ -44,10 +44,8 @@ mise use -g duckdb node pnpm
 pnpm install
 ```
 
-2. update the data.
-```bash
-duckdb -c ".read ./scripts/prepare.sql"
-```
+2. place the workbook at `data/source.xlsx` (kept out of git).
+   `pnpm dev` and `pnpm build` prepare the data automatically before starting.
 
 3. test the project
 ```bash
@@ -123,5 +121,28 @@ If a rule sheet breaks a rule (a gap or overlap between ranges, SC + K9 differen
 `channels_open`, an empty cell), the script stops with a message that names the sheet and the
 Excel row, and the data file stays as it was.
 
-To change the data or the rules: edit the Excel, run step 2, check with step 3, and push. No code
-changes are needed.
+To change the data or the rules: edit the Excel, run `pnpm dev`, check the pages, and commit
+`public/data/pax.parquet` before pushing. No code changes are needed.
+
+`pnpm dev` and `pnpm build` run `scripts/prepare-data.mjs` first. It compares SHA-256 hashes of
+the workbook, SQL and Parquet with the last successful preparation, cached in
+`data/.prepared.json` (also kept out of git). It regenerates on the first run with a workbook,
+when an input changes, or when the Parquet is missing or has changed outside the script. A
+terminal notice says why it is regenerating and reminds you to review and commit the result.
+Unchanged files are reused, so restarting dev or building does not rewrite the file or its
+"Datos actualizados" timestamp. The check runs at startup; after editing Excel with dev
+already running, restart `pnpm dev`.
+
+If the workbook is absent (as in GitHub Actions or a code-only checkout), the commands use the
+existing Parquet with a warning that its freshness cannot be checked. If both files are
+missing, or if preparation fails, dev/build stops. DuckDB is needed only when regenerating;
+it runs with `-bail` so validation errors stop before the final write.
+
+To prepare without starting dev, or to force a refresh:
+```bash
+pnpm data:prepare
+pnpm data:prepare --force
+```
+The original `duckdb -bail -c ".read ./scripts/prepare.sql"` also works, but does not update the
+cache, so the next dev/build prepares once more. Use `data:prepare` for the cached path; a
+package script named `prepare` would also run during dependency installation.
